@@ -1,0 +1,37 @@
+import serial
+import time
+import multiprocessing
+ 
+class SerialProcess(multiprocessing.Process):
+
+	def __init__(self, taskQ, resultQ):
+	multiprocessing.Process.__init__(self)
+	self.taskQ = taskQ
+		self.resultQ = resultQ
+		self.usbPort = '/dev/serial0'
+		self.sp = serial.Serial(self.usbPort, 115200, timeout=1)
+ 
+	def close(self):
+        self.sp.close()
+ 
+    def sendData(self, data):
+        self.sp.write(data)
+        time.sleep(3)
+ 
+    def run(self):
+ 
+    	self.sp.flushInput()
+ 
+        while True:
+            # look for incoming tornado request
+            if not self.taskQ.empty():
+                task = self.taskQ.get()
+		# Send stuff to ESP here
+ 
+            # look for incoming serial data
+            if (self.sp.inWaiting() > 0):
+            	result = self.sp.readline()
+		print(result.decode())
+ 
+                # send it back to tornado
+            	self.resultQ.put(result)
