@@ -31,15 +31,22 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
     def open(self):
         print('New connection', flush=True)
         clients.add(self)
-        self.write_message(json.dumps(str(zip(*data))))		# Transpose to a 3 x n
+        dataT = list(zip(*data))
+        self.write_message(json.dumps({"T1": dataT[0],
+				       "T2": dataT[1],
+				       "setpoint": dataT[2],
+				       "time": dataT[3]}))
  
     def on_message(self, message):
-        print('message received {}'.format(message), flush=True)
-        self.write_message('message received {}'.format(message))
+        queue = self.application.settings.get('queue')
+        queue.put(message)
  
     def on_close(self):
-        clients.discard(self)
-        print('connection closed', flush=True)
+        try:
+            clients.discard(self)
+            print('connection closed', flush=True)
+        except:
+            print("Connection dropped before it could be closed successfully")
 
 def main():
     taskQ = multiprocessing.Queue()
@@ -62,12 +69,10 @@ def main():
     def get_data():
         if not outQ.empty():
             inData = outQ.get().decode().split(',')
-            temp, setpoint, time = [float(d) for d in inData[:3]]
-            data.append([temp, setpoint, time])
+            T1, T2, setpoint, time = [float(d) for d in inData[:4]]
+            data.append([T1, T2, setpoint, time])
             for client in clients:
-                client.write_message(json.dumps([temp, setpoint, time]))
-                #client.write_message("{}".format(temp))
-                #print("Got {} from serial".format(temp), flush=True)
+                client.write_message(json.dumps(inData))
 
     mainLoop = tornado.ioloop.IOLoop.instance()
     scheduler = tornado.ioloop.PeriodicCallback(get_data, 10)
