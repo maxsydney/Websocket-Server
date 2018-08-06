@@ -39,7 +39,11 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
  
     def on_message(self, message):
         queue = self.application.settings.get('queue')
-        queue.put(message)
+        header, command = message.split("&")
+        if header == "PICMD":
+            self.processCommand(command)
+        else:
+            queue.put(message)
  
     def on_close(self):
         try:
@@ -48,10 +52,16 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
         except:
             print("Connection dropped before it could be closed successfully")
 
+    def processCommand(self, cmd):
+        if cmd == "refreshScreen":
+            commands = self.application.settings.get('commands')
+            commands.put(cmd)
+
 def main():
     taskQ = multiprocessing.Queue()
     outQ = multiprocessing.Queue()
-    sp = serialProcess.SerialProcess(taskQ, outQ)
+    cmdQ = multiprocessing.Queue()
+    sp = serialProcess.SerialProcess(taskQ, outQ, cmdQ)
     sp.daemon = True
     sp.start()    
 
@@ -60,7 +70,7 @@ def main():
         handlers=[
             (r"/", IndexHandler),
             (r"/ws", WebSocketHandler)
-        ], queue=taskQ
+        ], queue=taskQ, commands=cmdQ
     )
     httpServer = tornado.httpserver.HTTPServer(app)
     httpServer.listen(options.port)

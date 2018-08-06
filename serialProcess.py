@@ -12,11 +12,12 @@ class SerialProcess(multiprocessing.Process):
 	receive messages to pass to ESP
 	'''
  
-	def __init__(self, taskQ, resultQ):
+	def __init__(self, taskQ, resultQ, cmdQ):
 		multiprocessing.Process.__init__(self)
 		self.LCD = True
 		self.taskQ = taskQ
 		self.resultQ = resultQ
+		self.cmdQ = cmdQ
 		self.usbPort = '/dev/serial0'
 		self.sp = serial.Serial(self.usbPort, 115200, timeout=1)
 		self.initLCD()
@@ -63,7 +64,11 @@ class SerialProcess(multiprocessing.Process):
 				task = self.taskQ.get()
 				self.sendData(task.encode())
 				# Send stuff to ESP here
- 
+			if not self.cmdQ.empty():
+				cmd = self.cmdQ.get()
+				if cmd == "refreshScreen":
+					self.initLCD() #self.drawTemplate()
+			 
 			# look for incoming serial data
 			if (self.sp.inWaiting() > 0):
 				data = self.sp.readline()
